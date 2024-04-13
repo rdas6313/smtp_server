@@ -1,0 +1,5 @@
+
+
+config = {
+    "domain": "domain.com"
+}
