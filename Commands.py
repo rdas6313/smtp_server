@@ -2,6 +2,7 @@ from abc import ABC, abstractclassmethod
 from Data import Request, Message
 from Configuration import config
 from ReplyCodes import codes
+import re
 
 
 class Command(ABC):
@@ -51,7 +52,36 @@ class Mail(Command):
     """Implements Mail command of SMTP protocol"""
 
     def handel_request(self, socket, mail, request):
-        pass
+        valid, msg = self.is_valid_syntax(request)
+        if not valid:
+            print(msg[1])
+            output = f"{msg[0]} {msg[1]}"
+            self.send(socket, output)
+            return
+        sender = self.get_parameter(request)
+        mail.sender = sender
+        output = f"{codes.get("OK", ("", ""))[0]} {
+            codes.get("OK", ("", ""))[1]}"
+        self.send(socket, output)
+
+    def is_valid_syntax(self, request: Request):
+        if not request:
+            return (False, codes.get("COMMAND_PARAMETER_ERROR", None))
+        word = request.message.lower().strip().split(' ')
+        if (len(word) != 2):
+            return (False, codes.get("COMMAND_PARAMETER_ERROR", None))
+        from_word = word[1].split(':')
+        # print(from_word)
+        pattern = "^<.+@.+\.[a-zA-Z]+>$"
+        if len(from_word) != 2 or from_word[0] != "from" or not re.search(pattern, from_word[1]):
+            return (False, codes.get("COMMAND_PARAMETER_ERROR", None))
+        return (True, '')
+
+    def get_parameter(self, request: Request):
+        word = request.message.lower().strip().split(' ')
+        parameter: str = word[1].split(':')[1]
+        parameter = parameter.lstrip('<').rstrip('>')
+        return parameter
 
 
 class Rcpt(Command):
