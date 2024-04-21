@@ -92,3 +92,94 @@ class TestMailCommand:
         message = Message("", [], "")
         request = Request(req_msg)
         mail.handel_request(socket, message, request)
+
+
+class TestRcptCommand:
+
+    @pytest.mark.parametrize("req_msg, expected", [("RCPT TO:<abc@ex.com>", True),
+                                                   ("rcpt to:<abc@ex.com>", True),
+                                                   ("rcpt:<abc@ex.com>", False),
+                                                   ("rcpt to:", False),
+                                                   ("rcpt to:abc@ex.com", False),
+                                                   ("rcpt:", False),
+                                                   ("rcpt:abc.com", False)])
+    def test_is_valid_syntax(self, req_msg, expected):
+        from Commands import Rcpt
+        from Data import Request
+        request = Request(req_msg)
+        rcpt = Rcpt()
+        assert rcpt.is_valid_syntax(request)[0] == expected
+
+    @pytest.mark.parametrize("req_msg,expected", [("RCPT TO:<abc@gmail.com>", "abc@gmail.com"),
+                                                  ("rcpt to:<abc@gmail.com>", "abc@gmail.com")])
+    def test_get_parameter(self, req_msg, expected):
+        from Commands import Rcpt
+        from Data import Request
+        request = Request(req_msg)
+        rcpt = Rcpt()
+        assert rcpt.get_parameter(request) == expected
+
+    @pytest.mark.parametrize("req_msg,expected", [("RCPT TO:<abc@ex.com>", "250 Ok"),
+                                                  ("RCPT TO:<abcex.com>",
+                                                   "501 Command parameter error"),
+                                                  ("rcpt tO:<abc@ex.com>",
+                                                   "250 Ok"),
+                                                  ("rcpt to:<abc@ex.com>",
+                                                   "250 Ok"),
+                                                  ("rcpt:<abc@ex.com>",
+                                                   "501 Command parameter error"),
+                                                  ("rcpt to:",
+                                                   "501 Command parameter error"),
+                                                  ("rcpt to:abc@ex.com",
+                                                   "501 Command parameter error"),
+                                                  ("rcpt:", "501 Command parameter error"),
+                                                  ("rcpt:abc.com", "501 Command parameter error")])
+    def test_handel_request(self, req_msg, expected):
+        from Data import Request, Message
+        from Commands import Rcpt
+
+        class Socket:
+            def sendall(self, msg):
+                assert msg == expected
+
+        socket = Socket()
+        rcpt = Rcpt()
+        message = Message("", [], "")
+        request = Request(req_msg)
+        rcpt.handel_request(socket, message, request)
+
+
+class TestDataCommand:
+
+    @pytest.mark.parametrize("req_msg,expected", [("DATA", True), ("data", True), ("data a", False)])
+    def test_is_valid_syntax(self, req_msg, expected):
+        from Commands import Data
+        from Data import Request
+        request = Request(req_msg)
+        data = Data()
+        assert data.is_valid_syntax(request)[0] == expected
+
+    @pytest.mark.parametrize("inputs,outputs", [(["data", "Content"], ["354 Send message content.End with <CRLF>.<CRLF>", "250 Ok"]),
+                                                (["data to", "Content"], [
+                                                 "501 Command parameter error", "354 Send message content.End with <CRLF>.<CRLF>", "250 Ok"]),
+                                                (["  data ", "Content"], ["354 Send message content.End with <CRLF>.<CRLF>", "250 Ok"])])
+    def test_handel_request(self, inputs, outputs):
+        from Commands import Data
+        from Data import Request, Message
+
+        class Socket:
+            def __init__(self) -> None:
+                self.index = 0
+
+            def sendall(self, msg):
+                assert msg == outputs[self.index]
+                self.index += 1
+
+            def read(self):
+                return inputs[1]
+
+        message = Message("", [], "")
+        socket = Socket()
+        request = Request(inputs[0])
+        data = Data()
+        data.handel_request(socket, message, request)

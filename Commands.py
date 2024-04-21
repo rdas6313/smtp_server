@@ -15,6 +15,10 @@ class Command(ABC):
     def send(self, socket, message):
         socket.sendall(message)
 
+    def read(self, socket, eof):
+        content = socket.read()
+        return content
+
 
 class Helo(Command):
     """Implements Helo command of SMTP protocol"""
@@ -72,7 +76,8 @@ class Mail(Command):
             return (False, codes.get("COMMAND_PARAMETER_ERROR", None))
         from_word = word[1].split(':')
         # print(from_word)
-        pattern = "^<.+@.+\.[a-zA-Z]+>$"
+        # pattern = "^<.+@.+\.[a-zA-Z]+>$"
+        pattern = "^<[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+>$"
         if len(from_word) != 2 or from_word[0] != "from" or not re.search(pattern, from_word[1]):
             return (False, codes.get("COMMAND_PARAMETER_ERROR", None))
         return (True, '')
@@ -88,14 +93,62 @@ class Rcpt(Command):
     """Implements Rcpt to command of SMTP protocol"""
 
     def handel_request(self, socket, mail, request):
-        pass
+        valid, msg = self.is_valid_syntax(request)
+        if not valid:
+            output = f"{msg[0]} {msg[1]}"
+            self.send(socket, output)
+            return False
+        receiver = self.get_parameter(request)
+        mail.recipients.append(receiver)
+        output = f"{codes.get("OK", ("", ""))[0]} {
+            codes.get("OK", ("", ""))[1]}"
+        self.send(socket, output)
+        return False
+
+    def is_valid_syntax(self, request: Request):
+        if not request:
+            return (False, codes.get("COMMAND_PARAMETER_ERROR", None))
+        word = request.message.lower().strip().split(' ')
+        if (len(word) != 2):
+            return (False, codes.get("COMMAND_PARAMETER_ERROR", None))
+        from_word = word[1].split(':')
+        # pattern = "^<.+@.+\.[a-zA-Z]+>$"
+        pattern = "^<[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+>$"
+        if len(from_word) != 2 or from_word[0] != "to" or not re.search(pattern, from_word[1]):
+            return (False, codes.get("COMMAND_PARAMETER_ERROR", None))
+        return (True, '')
+
+    def get_parameter(self, request: Request):
+        word = request.message.lower().strip().split(' ')
+        parameter: str = word[1].split(':')[1]
+        parameter = parameter.lstrip('<').rstrip('>')
+        return parameter
 
 
 class Data(Command):
     """Implements Data command of SMTP protocol"""
 
     def handel_request(self, socket, mail, request):
-        pass
+        valid, msg = self.is_valid_syntax(request)
+        if not valid:
+            output = f"{msg[0]} {msg[1]}"
+            self.send(socket, output)
+            return False
+        code, msg = codes.get("SEND_MAIL_CONTENT", (0, ""))
+        output = f"{code} {msg}"
+        self.send(socket, output)
+        eof = '.'
+        content = self.read(socket, eof)
+        mail.message = content
+        code, msg = codes.get("OK", (0, ""))
+        output = f"{code} {msg}"
+        self.send(socket, output)
+        return False
+
+    def is_valid_syntax(self, request: Request):
+        if not request or request.message.strip().lower() != "data":
+            return (False, codes.get("COMMAND_PARAMETER_ERROR", None))
+        return (True, '')
 
 
 class Rset(Command):
