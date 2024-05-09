@@ -161,7 +161,7 @@ class TestDataCommand:
 
     @pytest.mark.parametrize("inputs,outputs", [(["data", "Content"], ["354 Send message content.End with <CRLF>.<CRLF>", "250 Ok"]),
                                                 (["data to", "Content"], [
-                                                 "501 Command parameter error", "354 Send message content.End with <CRLF>.<CRLF>", "250 Ok"]),
+                                                 "501 Command parameter error"]),
                                                 (["  data ", "Content"], ["354 Send message content.End with <CRLF>.<CRLF>", "250 Ok"])])
     def test_handel_request(self, inputs, outputs):
         from Commands import Data
@@ -183,3 +183,21 @@ class TestDataCommand:
         request = Request(inputs[0])
         data = Data()
         data.handel_request(socket, message, request)
+
+
+class TestQuitCommand:
+
+    @pytest.mark.parametrize("input,output", [('QUIT', '221 BYE!'), ('quit', '221 BYE!'), ('quit to', '501 Command parameter error')])
+    def test_quit(self, input, output):
+        from Data import Request, Message
+        from Commands import Quit
+
+        class Socket:
+            def sendall(self, msg):
+                assert msg == output
+
+        message = Message("", [], "")
+        socket = Socket()
+        request = Request(input)
+        quit = Quit()
+        quit.handel_request(socket, message, request)

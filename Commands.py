@@ -34,6 +34,7 @@ class Helo(Command):
             msg = f"{code} {config.get("domain", None)}"
             mail.clear()
         self.send(socket, msg)
+        return False
 
     def get_parameter_from_request(self, request: Request):
         """ Extracts parameter from request """
@@ -67,6 +68,7 @@ class Mail(Command):
         output = f"{codes.get("OK", ("", ""))[0]} {
             codes.get("OK", ("", ""))[1]}"
         self.send(socket, output)
+        return False
 
     def is_valid_syntax(self, request: Request):
         if not request:
@@ -169,4 +171,20 @@ class Quit(Command):
     """Implements Quit command of SMTP protocol"""
 
     def handel_request(self, socket, mail, request):
-        pass
+        valid, msg = self.is_valid_syntax(request)
+        if not valid:
+            output = f"{msg[0]} {msg[1]}"
+            self.send(socket, output)
+            return False
+
+        mail = None
+        request = None
+        code, msg = codes.get('BYE', None)
+        msg = f"{code} {msg}"
+        self.send(socket=socket, message=msg)
+        return True
+
+    def is_valid_syntax(self, request: Request):
+        if not request or request.message.strip().lower() != "quit":
+            return (False, codes.get("COMMAND_PARAMETER_ERROR", None))
+        return (True, '')
