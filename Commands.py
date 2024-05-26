@@ -9,7 +9,7 @@ class Command(ABC):
     """ Interface for command """
 
     @abstractclassmethod
-    def handel_request(self, socket, mail: Message, request: Request):
+    def handel_request(self, mail: Message, request: Request):
         pass
 
     def send(self, socket, message):
@@ -23,7 +23,7 @@ class Command(ABC):
 class Helo(Command):
     """Implements Helo command of SMTP protocol"""
 
-    def handel_request(self, socket, mail: Message, request: Request):
+    def handel_request(self, mail: Message, request: Request):
         """ Handel Helo command request """
         valid, parameter = self.get_parameter_from_request(request)
         if not valid:
@@ -33,8 +33,7 @@ class Helo(Command):
             code, code_msg = codes.get("OK", (None, None))
             msg = f"{code} {config.get("domain", None)}"
             mail.clear()
-        self.send(socket, msg)
-        return False
+        return False, msg
 
     def get_parameter_from_request(self, request: Request):
         """ Extracts parameter from request """
@@ -50,25 +49,23 @@ class EHLO(Command):
     """Implements Ehlo command of SMTP protocol"""
 
     def handel_request(self, socket, mail, request):
-        pass
+        self.send(socket, codes.get("UNRECOGNIZED_COMMAND", None))
 
 
 class Mail(Command):
     """Implements Mail command of SMTP protocol"""
 
-    def handel_request(self, socket, mail, request):
+    def handel_request(self, mail, request):
         valid, msg = self.is_valid_syntax(request)
         if not valid:
-            print(msg[1])
+            # print(msg[1])
             output = f"{msg[0]} {msg[1]}"
-            self.send(socket, output)
-            return
+            return False, output
         sender = self.get_parameter(request)
         mail.sender = sender
         output = f"{codes.get("OK", ("", ""))[0]} {
             codes.get("OK", ("", ""))[1]}"
-        self.send(socket, output)
-        return False
+        return False, output
 
     def is_valid_syntax(self, request: Request):
         if not request:
@@ -94,18 +91,16 @@ class Mail(Command):
 class Rcpt(Command):
     """Implements Rcpt to command of SMTP protocol"""
 
-    def handel_request(self, socket, mail, request):
+    def handel_request(self, mail, request):
         valid, msg = self.is_valid_syntax(request)
         if not valid:
             output = f"{msg[0]} {msg[1]}"
-            self.send(socket, output)
-            return False
+            return False, output
         receiver = self.get_parameter(request)
         mail.recipients.append(receiver)
         output = f"{codes.get("OK", ("", ""))[0]} {
             codes.get("OK", ("", ""))[1]}"
-        self.send(socket, output)
-        return False
+        return False, output
 
     def is_valid_syntax(self, request: Request):
         if not request:
@@ -130,22 +125,21 @@ class Rcpt(Command):
 class Data(Command):
     """Implements Data command of SMTP protocol"""
 
-    def handel_request(self, socket, mail, request):
+    def handel_request(self, mail, request):
         valid, msg = self.is_valid_syntax(request)
         if not valid:
             output = f"{msg[0]} {msg[1]}"
-            self.send(socket, output)
-            return False
+            return False, output
         code, msg = codes.get("SEND_MAIL_CONTENT", (0, ""))
         output = f"{code} {msg}"
-        self.send(socket, output)
+        return False, output
+
+    def handel_data(self, mail, content):
         eof = '.'
-        content = self.read(socket, eof)
         mail.message = content
         code, msg = codes.get("OK", (0, ""))
         output = f"{code} {msg}"
-        self.send(socket, output)
-        return False
+        return False, output
 
     def is_valid_syntax(self, request: Request):
         if not request or request.message.strip().lower() != "data":
@@ -170,19 +164,17 @@ class Noop(Command):
 class Quit(Command):
     """Implements Quit command of SMTP protocol"""
 
-    def handel_request(self, socket, mail, request):
+    def handel_request(self, mail, request):
         valid, msg = self.is_valid_syntax(request)
         if not valid:
             output = f"{msg[0]} {msg[1]}"
-            self.send(socket, output)
-            return False
+            return False, output
 
         mail = None
         request = None
         code, msg = codes.get('BYE', None)
         msg = f"{code} {msg}"
-        self.send(socket=socket, message=msg)
-        return True
+        return True, msg
 
     def is_valid_syntax(self, request: Request):
         if not request or request.message.strip().lower() != "quit":

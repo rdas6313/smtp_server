@@ -28,15 +28,11 @@ class TestHeloCommand:
         from Data import Request, Message
         from Commands import Helo
 
-        class Socket:
-            def sendall(self, msg):
-                assert msg == expected
-
-        socket = Socket()
         request = Request(req_msg)
         helo = Helo()
-        helo.handel_request(socket, Message(
+        should_continue, msg = helo.handel_request(Message(
             sender="", recipients=[], message=""), request)
+        assert msg == expected
 
 
 class TestMailCommand:
@@ -83,15 +79,11 @@ class TestMailCommand:
         from Data import Request, Message
         from Commands import Mail
 
-        class Socket:
-            def sendall(self, msg):
-                assert msg == expected
-
-        socket = Socket()
         mail = Mail()
         message = Message("", [], "")
         request = Request(req_msg)
-        mail.handel_request(socket, message, request)
+        should_continue, msg = mail.handel_request(message, request)
+        assert msg == expected
 
 
 class TestRcptCommand:
@@ -138,15 +130,11 @@ class TestRcptCommand:
         from Data import Request, Message
         from Commands import Rcpt
 
-        class Socket:
-            def sendall(self, msg):
-                assert msg == expected
-
-        socket = Socket()
         rcpt = Rcpt()
         message = Message("", [], "")
         request = Request(req_msg)
-        rcpt.handel_request(socket, message, request)
+        should_continue, msg = rcpt.handel_request(message, request)
+        assert msg == expected
 
 
 class TestDataCommand:
@@ -163,26 +151,21 @@ class TestDataCommand:
                                                 (["data to", "Content"], [
                                                  "501 Command parameter error"]),
                                                 (["  data ", "Content"], ["354 Send message content.End with <CRLF>.<CRLF>", "250 Ok"])])
-    def test_handel_request(self, inputs, outputs):
+    def test_handel_request_and_data(self, inputs, outputs):
         from Commands import Data
         from Data import Request, Message
-
-        class Socket:
-            def __init__(self) -> None:
-                self.index = 0
-
-            def sendall(self, msg):
-                assert msg == outputs[self.index]
-                self.index += 1
-
-            def read(self):
-                return inputs[1]
-
+        import re
+        pattern = "^354.+"
         message = Message("", [], "")
-        socket = Socket()
         request = Request(inputs[0])
         data = Data()
-        data.handel_request(socket, message, request)
+        should_continue, msg = data.handel_request(message, request)
+        assert msg == outputs[0]
+        if not re.search(pattern, msg):
+            return
+
+        should_continue, msg = data.handel_data(message, inputs[1])
+        assert msg == outputs[1]
 
 
 class TestQuitCommand:
@@ -192,12 +175,8 @@ class TestQuitCommand:
         from Data import Request, Message
         from Commands import Quit
 
-        class Socket:
-            def sendall(self, msg):
-                assert msg == output
-
         message = Message("", [], "")
-        socket = Socket()
         request = Request(input)
         quit = Quit()
-        quit.handel_request(socket, message, request)
+        should_continue, msg = quit.handel_request(message, request)
+        assert msg == output
