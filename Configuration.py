@@ -1,5 +1,7 @@
 
 
 config = {
-    "domain": "domain.com"
+    "domain": "domain.com",
+    "ip": "",
+    "port": 0
 }
